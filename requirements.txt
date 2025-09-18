@@ -3,7 +3,6 @@ sympy
 casadi
 scipy
 matplotlib
-acados_template
 notebook
 ipykernel
 jupyterlab

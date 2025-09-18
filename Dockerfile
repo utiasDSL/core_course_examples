@@ -6,6 +6,7 @@ FROM deepnote/python:3.10
 RUN apt-get update && apt-get install -y \
     bash \
     curl \
+    curl build-essential \
     git \
     cmake \
     make \
@@ -16,7 +17,22 @@ RUN apt-get update && apt-get install -y \
     libopenblas-dev \
     libcdd-dev \
     python3-dev \
+    # for Rust
+    pkg-config \
+    libssl-dev \
+    clang \
+    llvm \
     && rm -rf /var/lib/apt/lists/*
+
+# Install cargo
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+# make it more stable for acados build
+ENV CARGO_BUILD_JOBS=2
+ENV RUSTFLAGS="-C codegen-units=1"
+
+# check
+RUN cargo --version
 
 # clone acados
 RUN git clone https://github.com/acados/acados.git /acados && \
@@ -60,6 +76,14 @@ patch_tree(Path("/acados"))
 PY
 # --------------------------------------------------
 
+# Install t_renderer manually and replace the deafult one with wrong version
+RUN git clone https://github.com/acados/tera_renderer.git /tera_renderer && \
+    cd /tera_renderer && \
+    cargo update -w && \
+    cargo build --release && \
+    mkdir -p /acados/bin && \
+    install -m 0755 /tera_renderer/target/release/t_renderer /acados/bin/t_renderer
+
 # environment variables
 ENV ACADOS_SOURCE_DIR=/acados
 ENV ACADOS_INSTALL_DIR=/acados
@@ -73,8 +97,12 @@ WORKDIR /app
 COPY . /app
 
 # install python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install --no-cache-dir python-csv jupyterlab cvxopt scipy pycddlib==2.1.0 pytope matplotlib seaborn torch
+RUN python -m pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir seaborn cvxopt pycddlib==2.1.0 pytope
+
+# install torch (cpu version)
+RUN pip install --no-cache-dir torch==2.3.0+cpu torchvision \
+    --index-url https://download.pytorch.org/whl/cpu
 
 # expose the port for jupyterlab
 EXPOSE 8888
