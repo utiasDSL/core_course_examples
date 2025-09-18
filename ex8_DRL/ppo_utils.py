@@ -14,13 +14,12 @@ from pathlib import Path
 import seaborn as sns # need to install
 
 sys.path.append(os.path.abspath(".."))
-from rest.utils import Env_rl_c, BaseController
+from utils.env import Env_rl_c
+from utils.controller import BaseController
 
 
 
-#########################################################
-#                   PPOController Class                 #
-#########################################################
+
 
 def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     torch.nn.init.orthogonal_(layer.weight, std)
@@ -28,8 +27,10 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     return layer
 
 
-class PPOController(BaseController):
 
+
+
+class PPOController(BaseController):
     def __init__(
         self,
         mdp: Env_rl_c,

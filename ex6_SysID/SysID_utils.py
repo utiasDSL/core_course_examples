@@ -5,21 +5,29 @@ import matplotlib.pyplot as plt
 from IPython.display import HTML
 from matplotlib.animation import FuncAnimation
 
-class GenerateData:
 
-<<<<<<< HEAD
-    def __init__(self, p_range=[(-2, 2)], p_weights=None, num_samples=100, case=None, param: float = None):
-=======
-    def __init__(self, p_range=[(-2, 2)], p_weights=None, num_samples=100, case=None):
->>>>>>> origin/model-based-rl
+
+
+
+
+
+'''------Generate Raw Data------'''
+
+class GenerateData:
+    def __init__(
+        self, 
+        p_range: tuple = [(-2, 2)], 
+        p_weights: list = None, 
+        num_samples: int = 100, 
+        case: int = None, 
+        param: float = None
+    ) -> None:
+        
         self.p_range = p_range if isinstance(p_range[0], tuple) else [p_range]
         self.num_samples = num_samples
         self.p_weights = p_weights  # None by default
         self.case = case if case is not None else np.random.randint(1, 5)
-<<<<<<< HEAD
         self.param = param
-=======
->>>>>>> origin/model-based-rl
 
         self.noise_mean = 0.0
         self.noise_std = 0.0
@@ -28,7 +36,6 @@ class GenerateData:
         self.h_current = None
 
         self._build_symbolic_function()
-
 
     def _sample_p(self):
         n_intervals = len(self.p_range)
@@ -50,21 +57,20 @@ class GenerateData:
 
         return np.concatenate(p_list).reshape(-1, 1)
 
-    def _symbolic_h(self, p, case):
+    def _symbolic_h(
+        self, 
+        p: ca.MX, 
+        case: int
+    ) -> ca.MX:
+        
         if case == 1:
             h = 0
         elif case == 2:
-<<<<<<< HEAD
             param = self.param if self.param is not None else 18
             h = (ca.pi * p) / param
         elif case == 3:
             param = self.param if self.param is not None else 0.005
             h = param * ca.cos(18 * p)
-=======
-            h = (ca.pi * p) / 18
-        elif case == 3:
-            h = 0.005 * ca.cos(18 * p)
->>>>>>> origin/model-based-rl
         elif case == 4:
             condition_left = p <= -ca.pi / 2
             condition_right = p >= ca.pi / 6
@@ -85,11 +91,20 @@ class GenerateData:
             raise ValueError("Case is not set. Please set a case before getting the symbolic function.")
         return self.h_func
 
-    def update_case(self, new_case):
+    def update_case(
+        self, 
+        new_case: int
+    ) -> None:
+        
         self.case = new_case
         self._build_symbolic_function()
 
-    def set_noise(self, mean=0.0, std=0.0):
+    def set_noise(
+        self, 
+        mean: float = 0.0, 
+        std: float = 0.0
+    ) -> None:
+
         self.noise_mean = mean
         self.noise_std = std
 
@@ -103,7 +118,11 @@ class GenerateData:
 
         return self.p_current, self.h_current
 
-    def save_to_csv(self, filename):
+    def save_to_csv(
+        self, 
+        filename: str
+    ) -> None:
+
         if self.p_current is None or self.h_current is None:
             raise ValueError("No data available. Please run generate_data() first.")
         with open(filename, mode='w', newline='') as f:
@@ -112,7 +131,11 @@ class GenerateData:
             for p_val, h_val in zip(self.p_current, self.h_current):
                 writer.writerow([float(p_val), float(h_val)])
 
-    def load_from_csv(self, filename):
+    def load_from_csv(
+        self, 
+        filename: str
+    ) -> tuple:
+
         p_list, h_list = [], []
         with open(filename, mode='r') as f:
             reader = csv.reader(f)
@@ -124,7 +147,13 @@ class GenerateData:
         self.h_current = np.array(h_list).reshape(-1, 1)
         return self.p_current, self.h_current
     
-    def plot(self, show_true_func=True, title="Generated Dataset and True Function", ax=None):
+    def plot(
+        self, 
+        show_true_func: bool = True, 
+        title: str = "Generated Dataset and True Function", 
+        ax: plt.Axes = None
+    ) -> None:
+        
         if self.p_current is None or self.h_current is None:
             raise ValueError("No data to plot. Please call generate_data() first.")
 
@@ -156,8 +185,16 @@ class GenerateData:
     
 
 
+
+
+'''------Linear Regression / Bayesian Linear Regression------'''
+
 class Identifier_LR:
-    def __init__(self, basis_functions):
+    def __init__(
+        self, 
+        basis_functions: list
+    ) -> None:
+        
         """
         basis_functions: list of callables, each taking a (N,1) array and returning a (N,1) array
         """
@@ -171,7 +208,12 @@ class Identifier_LR:
         self.p_train = None
         self.h_train = None
 
-    def fit(self, p, h):
+    def fit(
+        self, 
+        p: np.ndarray, 
+        h: np.ndarray
+    ) -> None:
+        
         p = p.reshape(-1, 1)
         h = h.reshape(-1, 1)
         Phi = np.hstack([f(p) for f in self.basis_functions])  # N x D
@@ -184,12 +226,23 @@ class Identifier_LR:
             raise ValueError("Model has not been fitted yet.")
         return self.theta
 
-    def predict(self, p):
+    def predict(
+        self, 
+        p: np.ndarray
+    ) -> np.ndarray:
+
         p = p.reshape(-1, 1)
         Phi = np.hstack([f(p) for f in self.basis_functions])  # N x D
         return Phi @ self.theta
 
-    def plot(self, p_test=None, true_func=None, title='Linear Regression', ax=None):
+    def plot(
+        self, 
+        p_test: np.ndarray = None, 
+        true_func: callable = None, 
+        title: str = 'Linear Regression', 
+        ax: plt.Axes = None
+    ) -> None:
+        
         """
         p_test: (N, 1) test points for drawing smooth fitted curve
         true_func: callable, true slope function h(p)
@@ -214,16 +267,12 @@ class Identifier_LR:
             ax.plot(p_test, h_true, 'b--', linewidth=2, label='True Function')
 
         # Training data
-<<<<<<< HEAD
         if len(self.p_train)<50:
             ax.plot(self.p_train, self.h_train, 'k.', label='Training Data', alpha=0.5, markersize=15)
         elif len(self.p_train)<200:
             ax.plot(self.p_train, self.h_train, 'k.', label='Training Data', alpha=0.5, markersize=10)
         else:
             ax.plot(self.p_train, self.h_train, 'k.', label='Training Data', alpha=0.5)
-=======
-        ax.plot(self.p_train, self.h_train, 'k.', label='Training Data', alpha=0.5)
->>>>>>> origin/model-based-rl
 
         # Prediction
         ax.plot(p_test, h_pred, color='red', linewidth=2, label='Fitted Curve (LR)')
@@ -234,9 +283,15 @@ class Identifier_LR:
         ax.legend()
     
 
-
 class Identifier_BLR(Identifier_LR):
-    def __init__(self, basis_functions, sigma2=1.0, mu0=None, Sigma0=None):
+    def __init__(
+        self, 
+        basis_functions: list, 
+        sigma2: float = 1.0, 
+        mu0: np.ndarray = None, 
+        Sigma0: np.ndarray = None
+    ) -> None:
+        
         """
         Parameters:
         - basis_functions: list of basis functions
@@ -256,7 +311,12 @@ class Identifier_BLR(Identifier_LR):
         self.mu_theta = None
         self.Sigma_theta = None
 
-    def fit(self, p, h):
+    def fit(
+        self, 
+        p: np.ndarray, 
+        h: np.ndarray
+    ) -> None:
+        
         p = p.reshape(-1, 1)
         h = h.reshape(-1, 1)
         Phi = np.hstack([f(p) for f in self.basis_functions])  # N x B
@@ -275,7 +335,11 @@ class Identifier_BLR(Identifier_LR):
         self.p_train = p
         self.h_train = h
 
-    def predict(self, p):
+    def predict(
+        self, 
+        p: np.ndarray
+    ) -> tuple:
+        
         p = p.reshape(-1, 1)
         Phi_test = np.hstack([f(p) for f in self.basis_functions])  # N x B
 
@@ -284,11 +348,15 @@ class Identifier_BLR(Identifier_LR):
         std = np.sqrt(var)
         return mean, std
 
-<<<<<<< HEAD
-    def plot(self, p_test=None, true_func=None, title='Bayesian Linear Regression', ax=None, larger_dot=False):
-=======
-    def plot(self, p_test=None, true_func=None, title='Bayesian Linear Regression', ax=None):
->>>>>>> origin/model-based-rl
+    def plot(
+        self, 
+        p_test: np.ndarray = None, 
+        true_func: callable = None, 
+        title: str = 'Bayesian Linear Regression', 
+        ax: plt.Axes = None, 
+        larger_dot: bool = False
+    ) -> None:
+        
         if self.p_train is None or self.h_train is None:
             raise ValueError("You must fit the model before plotting.")
 
@@ -308,16 +376,12 @@ class Identifier_BLR(Identifier_LR):
             ax.plot(p_test, y_true, 'b--', label='True function', linewidth=2)
 
         # Training data
-<<<<<<< HEAD
         if len(self.p_train)<50:
             ax.plot(self.p_train, self.h_train, 'k.', label='Training Data', alpha=0.5, markersize=15)
         elif len(self.p_train)<200:
             ax.plot(self.p_train, self.h_train, 'k.', label='Training Data', alpha=0.5, markersize=10)
         else:
             ax.plot(self.p_train, self.h_train, 'k.', label='Training Data', alpha=0.5)
-=======
-        ax.plot(self.p_train, self.h_train, 'k.', label='Training Data', alpha=0.5)
->>>>>>> origin/model-based-rl
 
         # Prediction mean
         ax.plot(p_test, y_mean, color='red', label='Model prediction (BLR)', linewidth=2)
@@ -339,15 +403,23 @@ class Identifier_BLR(Identifier_LR):
         ax.legend()
         
 
-#TODO: add interface to only plot the training progress of one single index
-def plot_param_over_sample_size(p, 
-                                h, 
-                                lr_model=None, 
-                                blr_model=None, 
-                                sample_indices=None, 
-                                plot_dims=None,
-                                groundtruth=None, 
-                                title=None):
+
+
+
+
+'''------Utils------'''
+
+def plot_param_over_sample_size(
+    p: np.ndarray, 
+    h: np.ndarray, 
+    lr_model: Identifier_LR = None, 
+    blr_model: Identifier_BLR = None, 
+    sample_indices: np.ndarray = None, 
+    plot_dims: np.ndarray = None,
+    groundtruth: np.ndarray = None, 
+    title: str = None
+):
+    
     """
     Compare LR and BLR parameter convergence on subsets of the same (p, h) dataset.
 
@@ -437,7 +509,16 @@ def plot_param_over_sample_size(p,
     plt.show()
 
 
-def plot_rmse_over_sample_size(p, h, model, true_func, test_range=np.array([-2.0, 2.0]), sample_indices=None, title=None):
+def plot_rmse_over_sample_size(
+    p: np.ndarray, 
+    h: np.ndarray, 
+    model: Identifier_LR, 
+    true_func: ca.Function, 
+    test_range: np.ndarray = np.array([-2.0, 2.0]), 
+    sample_indices: np.ndarray = None, 
+    title: str = None
+):
+    
     """
     Plot the RMSE of a fitted model against the true function as a function of dataset size.
 
@@ -487,8 +568,16 @@ def plot_rmse_over_sample_size(p, h, model, true_func, test_range=np.array([-2.0
     plt.show()
     
 
-
-def animate_training_progress(p, h, lr_model=None, blr_model=None, sample_indices=None, true_func=None, title='Model Fitting Animation'):
+def animate_training_progress(
+    p: np.ndarray, 
+    h: np.ndarray, 
+    lr_model: Identifier_LR = None, 
+    blr_model: Identifier_BLR = None, 
+    sample_indices: np.ndarray = None, 
+    true_func: ca.Function = None, 
+    title='Model Fitting Animation'
+):
+    
     """
     Animate model fitting results for LR and/or BLR across increasing sample sizes.
     Ensures consistent axes across all frames and subplots.
@@ -566,8 +655,4 @@ def animate_training_progress(p, h, lr_model=None, blr_model=None, sample_indice
 
     anim = FuncAnimation(fig, update, frames=len(sample_indices), interval=1500, repeat=False)
     plt.close(fig)
-<<<<<<< HEAD
     return HTML(anim.to_jshtml())
-=======
-    return HTML(anim.to_jshtml())
->>>>>>> origin/model-based-rl
