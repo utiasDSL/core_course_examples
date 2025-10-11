@@ -628,7 +628,7 @@ class MPCController(LQRController):
             N: int, 
             name: str = 'MPC', 
             type: str = 'MPC', 
-            verbose: bool = True
+            verbose: bool = False
         ) -> None:
 
         """

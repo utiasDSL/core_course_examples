@@ -23,7 +23,7 @@ class iLQRController(LQRController):
             type: str = 'iLQR', 
             max_iter: int = 100, 
             tol: float = 1e-1, 
-            verbose: bool = True
+            verbose: bool = False
         ) -> None:
 
         self.Qf = Qf  # Terminal cost matrix
