@@ -22,6 +22,7 @@ from IPython.display import display, HTML
 from scipy.interpolate import interp2d
 from cvxopt import matrix, solvers
 import pytope as pt
+from matplotlib.patches import Polygon
 from scipy.spatial import ConvexHull, QhullError, cKDTree
 
 from utils.env import Env, Dynamics
@@ -220,6 +221,144 @@ class Simulator:
 
 
 
+def draw_flag(ax, p_flag, h_func, normal_vec, 
+              flag_height=0.35, flag_width=0.20,
+              pole_color="black", flag_color="red"):
+    """
+    Draw a small flag on the mountain profile.
+
+    Arguments:
+        ax: Axes object to draw on.
+        p_flag: float, horizontal position of the flag.
+        h_func: function(p)->height, your env.h.
+        normal_vec: array-like (2,), direction vector indicating flag’s vertical direction.
+        flag_height: height of flag pole.
+        flag_width: width of the triangular flag.
+    """
+
+    # Normalize the normal vector
+    n = np.array(normal_vec, dtype=float)
+    n = n / np.linalg.norm(n)
+
+    # Orthogonal direction for flag triangle
+    t = np.array([n[1], -n[0]])  # 90 degrees rotated
+
+    # Base point of the flag on the curve
+    h_flag = float(h_func(p_flag).full().flatten()[0])
+    base = np.array([p_flag, h_flag])
+
+    # Pole top = base + n * flag_height
+    pole_bottom = base + n * flag_height
+    pole_top = pole_bottom + n * 0.08
+
+    # Triangular flag vertices
+    v1 = pole_bottom # left down
+    v2 = pole_bottom + n * 0.08 # left up
+    v3 = pole_bottom + t * flag_width # right
+
+    # Draw pole
+    ax.plot([base[0], pole_top[0]],
+            [base[1], pole_top[1]],
+            color=pole_color, linewidth=2)
+
+    # Draw flag triangle
+    tri = Polygon([v1, v2, v3], color=flag_color, alpha=0.85)
+    ax.add_patch(tri)
+
+def add_car(ax, car_length, wheel_radius, color="steelblue", filled=True):
+
+    # Create car shape
+    # # Shape 1
+    # car_shape = np.array([
+    #     [-3*car_length/4+car_length/8,  -wheel_radius],
+    #     [-3*car_length/4+car_length/8,  car_length/4-wheel_radius],
+    #     [-car_length/2+car_length/8,    car_length/4-wheel_radius],
+    #     [-car_length/4+car_length/8,    car_length/2-wheel_radius],
+    #     [car_length/4-car_length/8,     car_length/2-wheel_radius],
+    #     [car_length/2-car_length/8,     car_length/4-wheel_radius],
+    #     [3*car_length/4-car_length/8,   car_length/4-wheel_radius],
+    #     [4*car_length/5-car_length/8,   -wheel_radius],
+    #     [-3*car_length/4+car_length/8,  -wheel_radius],
+    # ])
+    # Shape 2: Jeep
+    car_shape = np.array([
+        [-3*car_length/4+car_length/8,    -wheel_radius],
+        [-2*car_length/3+car_length/8,    car_length/2-wheel_radius],
+        [car_length/4-car_length/8,       car_length/2-wheel_radius],
+        [car_length/2-car_length/8,       car_length/4-wheel_radius],
+        [3*car_length/4-car_length/8,     car_length/4-wheel_radius],
+        [4*car_length/5-car_length/8,     -wheel_radius],
+        [-3*car_length/4+car_length/8,    -wheel_radius],
+    ])
+    # Filled or outline?
+    if filled:
+        car_body = Polygon(
+            transform_shape(car_shape, [0,0], 0),
+            closed=True, facecolor=color, edgecolor=color, linewidth=2
+        )
+    else:
+        car_body = Polygon(
+            transform_shape(car_shape, [0,0], 0),
+            closed=True, facecolor='none', edgecolor=color, linewidth=2
+        )
+    ax.add_patch(car_body)
+    # Wheels
+    wheel_left = plt.Circle((0, 0), wheel_radius, color="black")
+    wheel_right = plt.Circle((0, 0), wheel_radius, color="black")
+    ax.add_patch(wheel_left)
+    ax.add_patch(wheel_right)
+    
+    return car_shape, car_body, wheel_left, wheel_right
+    
+def transform_shape(shape, center, theta):
+    R = np.array([
+        [np.cos(theta), -np.sin(theta)],
+        [np.sin(theta),  np.cos(theta)]
+    ])
+    return shape @ R.T + center
+
+def solve_wheel_center(wheel_center_x, r, env):
+    # variable
+    x_star = ca.SX.sym('x_star')
+
+    # expression F(x*) = x* + r*sin(theta(x*)) - x
+    theta = env.theta(x_star)          # CasADi function
+    F = x_star - r * ca.sin(theta) - wheel_center_x
+
+    # solver
+    Ffun = ca.Function("Ffun", [x_star], [F])
+    solver = ca.rootfinder("solver", "newton", Ffun)
+    
+    # initial guess
+    x0 = wheel_center_x
+
+    sol = solver(x0)
+    
+    height = env.h(sol) + r * ca.cos(env.theta(sol))
+
+    return (float(wheel_center_x), float(height))
+
+def animate(env, p, car_length, wheel_radius, axle_offset,
+            car_shape, car_body, wheel_left, wheel_right):
+    
+    theta = float(env.theta(p).full().flatten()[0])
+
+    # Wheel
+    w1_x = p - (car_length/2-wheel_radius) * np.cos(theta) - wheel_radius * np.sin(theta)
+    w2_x = p + (car_length/2-wheel_radius) * np.cos(theta) - wheel_radius * np.sin(theta)
+    (w1_x, w1_y) = solve_wheel_center(w1_x, wheel_radius, env)
+    (w2_x, w2_y) = solve_wheel_center(w2_x, wheel_radius, env)
+    # Rectangle
+    theta_real = np.arctan2((w2_y - w1_y), (w2_x - w1_x))
+    body_x_center = (w1_x + w2_x) / 2 - axle_offset * np.sin(theta_real)
+    body_y_center = (w1_y + w2_y) / 2 + axle_offset * np.cos(theta_real)
+    # Update wheels
+    wheel_left.center = (w1_x, w1_y)
+    wheel_right.center = (w2_x, w2_y)
+    # Update body
+    car_center = np.array([body_x_center, body_y_center])
+    shape_world = transform_shape(car_shape, car_center, theta_real)
+    car_body.set_xy(shape_world)
 
 class Visualizer:
     def __init__(
@@ -246,11 +385,9 @@ class Visualizer:
         # Define setting of plots and animation
         self.color = "blue"
         self.color_list = ['red', 'green', 'yellow', 'orange']
-
+        
+        self.figsize = (6, 6) if self.env.case == 4 else (6, 3)
         self.shadow_space_wide = 0.2
-
-        self.car_length= 0.2
-        self.figsize = (8, 4)
         self.refresh_rate = 30
 
     def display_plots(self, title = None) -> None:
@@ -633,7 +770,7 @@ class Visualizer:
         plt.tight_layout()
         plt.show()
 
-    def display_animation(self) -> HTML:
+    def display_animation(self, if_save=False) -> HTML:
         
         # Instantiate the plotting
         fig, ax1 = plt.subplots(1, 1, figsize=self.figsize)
@@ -645,19 +782,28 @@ class Visualizer:
         end_extension = p_max + 0.3
 
         p_disp_vals = np.linspace(start_extension, end_extension, 200) # generate grid mesh on p
-
         h_disp_vals = [float(self.env.h(p).full().flatten()[0]) for p in p_disp_vals]
-        h_max = 1.0 #max(h_disp_vals)
-        h_min = -1.0 #min(h_disp_vals)
-
-        ax1.set_xlim(start_extension-0.5, end_extension+0.5)
-        ax1.set_ylim(h_min-0.3, h_max+0.3)
+        ax1.set_xlim(start_extension, end_extension)
+        ax1.set_ylim(-1.3, 2.0 if self.simulator.env.case == 4 else 1.3)
 
         # Draw mountain profile curve h(p)
-        ax1.plot(p_disp_vals, h_disp_vals, label="Mountain profile h(p)", color="green")
+        ax1.plot(p_disp_vals, h_disp_vals, label="Mountain profile h(p)", color="black")
         ax1.set_xlabel("Position p")
         ax1.set_ylabel("Height h")
-        ax1.legend()
+        ax1.fill_between(
+            p_disp_vals,
+            h_disp_vals,
+            -1.3,
+            color="gray",
+            alpha=0.3
+        )
+
+        # Draw a mountain-aligned flag at the target
+        p_flag = self.env.target_position
+        theta_flag = float(self.env.theta(p_flag).full().flatten()[0])
+        normal_vec = np.array([np.sin(theta_flag), np.cos(theta_flag)])
+        draw_flag(ax1, p_flag=p_flag, h_func=self.env.h,
+                  normal_vec=((0, 1) if self.simulator.env.case == 3 else normal_vec))
 
         # Mark the intial state and the target state in the plotting
         initial_h = float(self.env.h(self.env.initial_position).full().flatten()[0])
@@ -665,134 +811,40 @@ class Visualizer:
         ax1.scatter([self.env.initial_position], [initial_h], color="blue", label="Start")
         #ax1.scatter([self.env.target_position], [target_h], color="orange", label="Target position")
         ax1.plot(self.env.target_position, target_h, marker='x', color='red', markersize=10, markeredgewidth=3, label='Target')
-
         if self.controller.type == 'LQR' and not np.allclose(self.controller.state_lin, self.controller.target_state):
             lin_position = self.controller.state_lin[0]
             lin_h = float(self.env.h(lin_position).full().flatten()[0])
             ax1.plot(lin_position, lin_h, marker='v', color='orange', markersize=7, markeredgewidth=3, label='Linearization Point')
+        ax1.legend(loc='lower right')
 
-        ax1.legend()
+        # Car parameters
+        car_length= 0.2
+        wheel_radius = 0.035
+        axle_offset = 1.5 * wheel_radius   # height from wheel center to car bottom
 
-
-        # Setting simplyfied car model as rectangle, and update the plotting to display the animation
-        car_height = self.car_length / 2
-        car = Rectangle((0, 0), self.car_length, car_height, color="black")
-        ax1.add_patch(car)
-
+        # Build car body + wheels
+        self.car_shape, self.car_body, self.wheel_left, self.wheel_right = add_car(ax1, car_length, wheel_radius)
+        
+        # Animation update function
         def update(frame):
-            # Get current position and attitude of car
-            current_position = self.position[frame]
-            current_theta = float(self.env.theta(current_position).full().flatten()[0])
+            # Ideal car center position
+            p = self.position[frame]
+            # Animate
+            animate(self.env, p, car_length, wheel_radius, axle_offset, self.car_shape, self.car_body, self.wheel_left, self.wheel_right)
 
-            # Update position and attitude of car
-            car.set_xy((current_position - self.car_length / 2, float(self.env.h(current_position - self.car_length / 2).full().flatten()[0])))
-            car.angle = np.degrees(current_theta)  # rad to deg
 
         # Instantiate animation
         anim = FuncAnimation(fig, update, frames=len(self.t_eval), interval=1000 / self.refresh_rate, repeat=False)
+        
+        # Save animation if required
+        if if_save:
+            anim.save("animation.mp4", writer="ffmpeg", fps=self.refresh_rate)
 
         plt.close(fig)
 
         return HTML(anim.to_jshtml())
     
-    def display_contrast_animation(self, *simulators) -> HTML:
-
-        # Instantiate the plotting
-        num_plots = len(simulators) + 1
-        fig, axes = plt.subplots(num_plots, 1, figsize=(self.figsize[0], self.figsize[1] * num_plots), sharex=True)
-
-        # Define size of plotting
-        p_max = 1.0 #max(max(sim.get_trajectories()[0][:, 0]) for sim in simulators)
-        p_min = -1.0 #min(min(sim.get_trajectories()[0][:, 0]) for sim in simulators)
-        start_extension = p_min - 0.3
-        end_extension = p_max + 0.3
-
-        p_disp_vals = np.linspace(start_extension, end_extension, 200)  # generate grid mesh on p
-
-        h_disp_vals = [float(self.env.h(p).full().flatten()[0]) for p in p_disp_vals]
-        h_max = 1.0 #max(h_disp_vals)
-        h_min = -1.0 #min(h_disp_vals)
-        axes[0].set_xlim(start_extension - 0.5, end_extension + 0.5)
-        axes[0].set_ylim(h_min - 0.3, h_max + 0.3)
-        axes[0].plot(p_disp_vals, h_disp_vals, label="Mountain profile h(p)", color="green")
-        axes[0].set_xlabel("Position p")
-        axes[0].set_ylabel("Height h")
-
-        for ax, sim in zip(axes[1:], simulators):
-
-            h_disp_vals = [float(sim.env.h(p).full().flatten()[0]) for p in p_disp_vals]
-            ax.set_xlim(start_extension - 0.5, end_extension + 0.5)
-            ax.set_ylim(h_min - 0.3, h_max + 0.3)
-            ax.plot(p_disp_vals, h_disp_vals, label="Mountain profile h(p)", color="green")
-            ax.set_xlabel("Position p")
-            ax.set_ylabel("Height h")
-
-
-        # Mark the initial state and the target state in the plotting
-        initial_h = float(self.env.h(self.env.initial_position).full().flatten()[0])
-        target_h = float(self.env.h(self.env.target_position).full().flatten()[0])
-        axes[0].scatter([self.env.initial_position], [initial_h], color="blue", label="Start")
-        #axes[0].scatter([self.env.target_position], [target_h], color="orange", label="Target position")
-        axes[0].plot(self.env.target_position, target_h, marker='x', color='red', markersize=10, markeredgewidth=3, label='Target')
-        axes[0].legend()
-
-        for ax, sim in zip(axes[1:], simulators):
-
-            initial_h = float(sim.env.h(self.env.initial_position).full().flatten()[0])
-            target_h = float(sim.env.h(self.env.target_position).full().flatten()[0])
-
-            ax.scatter([sim.env.initial_position], [initial_h], color="blue", label="Start")
-
-            #ax.scatter([sim.env.target_position], [target_h], color="orange", label="Target position")
-            ax.plot(sim.env.target_position, target_h, marker='x', color='red', markersize=10, markeredgewidth=3, label='Target')
-
-
-            if sim.controller.type == 'LQR' and not np.allclose(sim.controller.state_lin, sim.controller.target_state):
-                lin_position = sim.controller.state_lin[0]
-                lin_h = float(sim.env.h(lin_position).full().flatten()[0])
-                ax.plot(lin_position, lin_h, marker='v', color='orange', markersize=7, markeredgewidth=3, label='Linearization Point of LQR')
-
-            ax.legend()
-
-
-        # Create car objects for each simulator
-        car_objects = {}
-        colors = self.color_list[:len(simulators)]
-        car_height = self.car_length / 2
-
-        car_self = Rectangle((0, 0), self.car_length, car_height, color=self.color)
-        axes[0].add_patch(car_self)
-        axes[0].set_title(f"{self.simulator.controller_name}")
-
-        for ax, sim, color in zip(axes[1:], simulators, colors):
-            car = Rectangle((0, 0), self.car_length, car_height, color=color)
-            ax.add_patch(car)
-            ax.set_title(f"{sim.controller_name}")
-            car_objects[sim] = car
-
-
-        def update(frame):
-            # Update car for self
-            current_position = self.position[frame]
-            current_theta = float(self.env.theta(current_position).full().flatten()[0])
-            car_self.set_xy((current_position - self.car_length / 2, float(self.env.h(current_position - self.car_length / 2).full().flatten()[0])))
-            car_self.angle = np.degrees(current_theta)  # rad to deg
-
-            for sim, car in car_objects.items():
-                frame_ref = int(frame*self.dt/sim.dt)  # Adjust frame index for each simulator
-                current_position = sim.get_trajectories()[0][:, 0][frame_ref]
-                current_theta = float(sim.env.theta(current_position).full().flatten()[0])
-                car.set_xy((current_position - self.car_length / 2, float(sim.env.h(current_position - self.car_length / 2).full().flatten()[0])))
-                car.angle = np.degrees(current_theta)  # rad to deg
-
-        # Instantiate animation
-        anim = FuncAnimation(fig, update, frames=len(self.t_eval), interval=1000 / self.refresh_rate, repeat=False)
-
-        plt.close(fig)
-
-        return HTML(anim.to_jshtml())
-    
-    def display_contrast_animation_same(self, *simulators, if_gray:bool = False) -> HTML:
+    def display_contrast_animation(self, *simulators, if_gray:bool = False, if_save=False) -> HTML:
         import matplotlib.patches as mpatches
 
         custom_handles = []
@@ -806,13 +858,28 @@ class Visualizer:
         p_disp_vals = np.linspace(start_extension, end_extension, 200)
         h_disp_vals = [float(self.env.h(p).full().flatten()[0]) for p in p_disp_vals]
 
-        ax.set_xlim(start_extension - 0.5, end_extension + 0.5)
-        ax.set_ylim(-1.3, 1.3)
-        profile_plot, = ax.plot(p_disp_vals, h_disp_vals, label="Mountain profile h(p)", color="green")
+        ax.set_xlim(start_extension, end_extension)
+        ax.set_ylim(-1.3, 2.0 if self.simulator.env.case == 4 else 1.3)
+        profile_plot, = ax.plot(p_disp_vals, h_disp_vals, label="Mountain profile h(p)", color="black")
+        ax.fill_between(
+            p_disp_vals,
+            h_disp_vals,
+            -1.3,
+            color="gray",
+            alpha=0.3
+        )
         custom_handles.append(profile_plot)
-
         ax.set_xlabel("Position p")
         ax.set_ylabel("Height h")
+
+        # Draw a mountain-aligned flag at the target
+        p_flag = self.env.target_position
+        theta_flag = float(self.env.theta(p_flag).full().flatten()[0])
+        normal_vec = np.array([np.sin(theta_flag), np.cos(theta_flag)])
+        draw_flag(ax,
+                p_flag=p_flag,
+                h_func=self.env.h,
+                normal_vec=((0, 1) if self.simulator.env.case == 3 else normal_vec))
 
         # Start & Target markers
         initial_h = float(self.env.h(self.env.initial_position).full().flatten()[0])
@@ -822,6 +889,7 @@ class Visualizer:
         target_cross = ax.plot(self.env.target_position, target_h, marker='x', color='red', markersize=10, markeredgewidth=3, label='Target')[0]
         custom_handles.append(target_cross)
 
+        # LQR linearization points if have
         for sim in simulators:
 
             if sim.controller.type == 'LQR' and not np.allclose(sim.controller.state_lin, sim.controller.target_state):
@@ -830,25 +898,29 @@ class Visualizer:
                 lin_point = ax.plot(lin_position, lin_h, marker='v', color='orange', markersize=7, markeredgewidth=3, label='Linearization Point of LQR')[0]
                 custom_handles.append(lin_point)
 
-        # Car setup
-        car_objects = {}
+        # Car parameters
+        car_length= 0.2
+        wheel_radius = 0.035
+        axle_offset = 1.5 * wheel_radius   # height from wheel center to car bottom
+        car_shapes = {}
+        car_bodies = {}
+        wheel_lefts = {}
+        wheel_rights = {}
         colors = [self.color] + self.color_list[:len(simulators)]
-        car_height = self.car_length / 2
 
         # Self car
-        car_self = Rectangle((0, 0), self.car_length, car_height,
-                            edgecolor=self.color, facecolor='none', linewidth=2)
-        ax.add_patch(car_self)
-        car_objects[self] = car_self
+        car_shape_self, car_body_self, wheel_left_self, wheel_right_self = add_car(ax, car_length, wheel_radius, color=self.color, filled=False)
 
         # Simulators' cars
         for sim, color in zip(simulators, colors[1:]):
             if if_gray:
-                car = Rectangle((0, 0), self.car_length, car_height, edgecolor='gray', facecolor='none', linewidth=2)
+                car_shape, car_body, wheel_left, wheel_right = add_car(ax, car_length, wheel_radius, color='gray', filled=False)
             else:
-                car = Rectangle((0, 0), self.car_length, car_height, edgecolor=color, facecolor='none', linewidth=2)
-            ax.add_patch(car)
-            car_objects[sim] = car
+                car_shape, car_body, wheel_left, wheel_right = add_car(ax, car_length, wheel_radius, color=self.color, filled=False)
+            car_shapes[sim] = car_shape
+            car_bodies[sim] = car_body
+            wheel_lefts[sim] = wheel_left
+            wheel_rights[sim] = wheel_right
 
         # Title using correct controller names
         controller_names = " vs. ".join(
@@ -856,8 +928,7 @@ class Visualizer:
         )
         ax.set_title(controller_names)
 
-        # Legend
-
+        # Legends
         car_legend_handles = [
             mpatches.Patch(edgecolor=self.color, facecolor='none', linewidth=2, label=self.simulator.controller_name)
         ]
@@ -867,31 +938,39 @@ class Visualizer:
             else:
                 car_legend_handles.append(mpatches.Patch(edgecolor=color, facecolor='none', linewidth=2, label=sim.controller_name))
 
-        ax.legend(handles=custom_handles + car_legend_handles, loc='best')
+        ax.legend(handles=custom_handles + car_legend_handles, loc='lower right')
 
         # Animation update function
         def update(frame):
+
             # Self
             current_position = self.position[frame]
-            current_theta = float(self.env.theta(current_position).full().flatten()[0])
-            y_base = float(self.env.h(current_position - self.car_length / 2).full().flatten()[0])
-            car_self.set_xy((current_position - self.car_length / 2, y_base))
-            car_self.angle = np.degrees(current_theta)
+            animate(self.env, current_position, car_length, wheel_radius, axle_offset, 
+                    car_shape_self, car_body_self, wheel_left_self, wheel_right_self)
 
             # Simulators
-            for sim, car in car_objects.items():
+            for sim in simulators:
                 if sim is self:
                     continue
                 frame_ref = int(frame*self.dt/sim.dt)  # Adjust frame index for each simulator
                 current_position = sim.get_trajectories()[0][:, 0][frame_ref]
-                current_theta = float(sim.env.theta(current_position).full().flatten()[0])
-                y_base = float(sim.env.h(current_position - self.car_length / 2).full().flatten()[0])
-                car.set_xy((current_position - self.car_length / 2, y_base))
-                car.angle = np.degrees(current_theta)
+                animate(
+                    sim.env,
+                    current_position,
+                    car_length, wheel_radius, axle_offset,
+                    car_shapes[sim], 
+                    car_bodies[sim],
+                    wheel_lefts[sim],
+                    wheel_rights[sim]
+                )
 
         # Animate
         anim = FuncAnimation(fig, update, frames=len(self.t_eval),
                             interval=1000 / self.refresh_rate, repeat=False)
+        
+        # Save animation if required
+        if if_save:
+            anim.save("animation.mp4", writer="ffmpeg", fps=self.refresh_rate)
         
         plt.close(fig)
         
