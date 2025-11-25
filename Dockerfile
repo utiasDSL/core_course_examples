@@ -6,7 +6,7 @@ FROM deepnote/python:3.10
 RUN apt-get update && apt-get install -y \
     bash \
     curl \
-    curl build-essential \
+    build-essential \
     git \
     cmake \
     make \
@@ -52,10 +52,9 @@ RUN cd /acados/interfaces/acados_template && \
 
 # ---- Patch to remove future_fstrings encoding header ----
 RUN python - <<'PY'
-import re, importlib.util
-from pathlib import Path
+import re, importlib.util, pathlib
 pat = re.compile(r'^\s*#\s*-\*-\s*coding:\s*future_fstrings\s*-\*-\s*$', re.I)
-def patch_tree(root: Path):
+def patch_tree(root: pathlib.Path):
     if not root.exists(): return 0
     n=0
     for p in root.rglob("*.py"):
@@ -71,8 +70,8 @@ def patch_tree(root: Path):
     print("patched", n, "files under", root)
 spec = importlib.util.find_spec("acados_template")
 if spec and spec.origin:
-    patch_tree(Path(spec.origin).parent)
-patch_tree(Path("/acados"))
+    patch_tree(pathlib.Path(spec.origin).parent)
+patch_tree(pathlib.Path("/acados"))
 PY
 # --------------------------------------------------
 
