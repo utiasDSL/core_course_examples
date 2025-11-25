@@ -386,7 +386,8 @@ class Visualizer:
         self.color = "blue"
         self.color_list = ['red', 'green', 'yellow', 'orange']
         
-        self.figsize = (6, 6) if self.env.case == 4 else (6, 3)
+        self.figsize = (6, 6) if self.env.case == 4 else (6, 4)
+        # self.figsize = (6, 4)
         self.shadow_space_wide = 0.2
         self.refresh_rate = 30
 
@@ -770,10 +771,10 @@ class Visualizer:
         plt.tight_layout()
         plt.show()
 
-    def display_animation(self, if_save=False) -> HTML:
+    def display_animation(self, if_save=False, if_notitle=False, title=None, if_nolegend=False) -> HTML:
         
         # Instantiate the plotting
-        fig, ax1 = plt.subplots(1, 1, figsize=self.figsize)
+        fig, ax = plt.subplots(1, 1, figsize=self.figsize)
         
         # Define size of plotting
         p_max = 1.0 #max(self.position)
@@ -783,39 +784,45 @@ class Visualizer:
 
         p_disp_vals = np.linspace(start_extension, end_extension, 200) # generate grid mesh on p
         h_disp_vals = [float(self.env.h(p).full().flatten()[0]) for p in p_disp_vals]
-        ax1.set_xlim(start_extension, end_extension)
-        ax1.set_ylim(-1.3, 2.0 if self.simulator.env.case == 4 else 1.3)
+        ax.set_xlim(start_extension, end_extension)
+        ax.set_ylim(-1.3, 2.0 if self.simulator.env.case == 4 else 1.3)
 
         # Draw mountain profile curve h(p)
-        ax1.plot(p_disp_vals, h_disp_vals, label="Mountain profile h(p)", color="black")
-        ax1.set_xlabel("Position p")
-        ax1.set_ylabel("Height h")
-        ax1.fill_between(
+        ax.plot(p_disp_vals, h_disp_vals, label="Mountain profile h(p)", color="black")
+        ax.set_xlabel("Position p")
+        ax.set_ylabel("Height h")
+        ax.fill_between(
             p_disp_vals,
             h_disp_vals,
             -1.3,
             color="gray",
             alpha=0.3
         )
+        if not if_notitle:
+            if title is not None:
+                ax.set_title(title, fontsize=15, fontweight='bold')
+            else:
+                ax.set_title(self.simulator.controller_name, fontsize=15, fontweight='bold')
 
         # Draw a mountain-aligned flag at the target
         p_flag = self.env.target_position
-        theta_flag = float(self.env.theta(p_flag).full().flatten()[0])
-        normal_vec = np.array([np.sin(theta_flag), np.cos(theta_flag)])
-        draw_flag(ax1, p_flag=p_flag, h_func=self.env.h,
-                  normal_vec=((0, 1) if self.simulator.env.case == 3 else normal_vec))
+        # theta_flag = float(self.env.theta(p_flag).full().flatten()[0])
+        # normal_vec = np.array([-np.sin(theta_flag), np.cos(theta_flag)])
+        draw_flag(ax, p_flag=p_flag, h_func=self.env.h, normal_vec=(0, 1))
+                #   normal_vec=((0, 1) if self.simulator.env.case == 3 else normal_vec))
 
         # Mark the intial state and the target state in the plotting
         initial_h = float(self.env.h(self.env.initial_position).full().flatten()[0])
         target_h = float(self.env.h(self.env.target_position).full().flatten()[0])
-        ax1.scatter([self.env.initial_position], [initial_h], color="blue", label="Start")
-        #ax1.scatter([self.env.target_position], [target_h], color="orange", label="Target position")
-        ax1.plot(self.env.target_position, target_h, marker='x', color='red', markersize=10, markeredgewidth=3, label='Target')
+        ax.scatter([self.env.initial_position], [initial_h], color="blue", label="Start")
+        #ax.scatter([self.env.target_position], [target_h], color="orange", label="Target position")
+        ax.plot(self.env.target_position, target_h, marker='x', color='red', markersize=10, markeredgewidth=3, label='Target')
         if self.controller.type == 'LQR' and not np.allclose(self.controller.state_lin, self.controller.target_state):
             lin_position = self.controller.state_lin[0]
             lin_h = float(self.env.h(lin_position).full().flatten()[0])
-            ax1.plot(lin_position, lin_h, marker='v', color='orange', markersize=7, markeredgewidth=3, label='Linearization Point')
-        ax1.legend(loc='lower right')
+            ax.plot(lin_position, lin_h, marker='v', color='orange', markersize=7, markeredgewidth=3, label='Linearization Point')
+        if not if_nolegend:
+            ax.legend(loc='lower right')
 
         # Car parameters
         car_length= 0.2
@@ -823,7 +830,7 @@ class Visualizer:
         axle_offset = 1.5 * wheel_radius   # height from wheel center to car bottom
 
         # Build car body + wheels
-        self.car_shape, self.car_body, self.wheel_left, self.wheel_right = add_car(ax1, car_length, wheel_radius)
+        self.car_shape, self.car_body, self.wheel_left, self.wheel_right = add_car(ax, car_length, wheel_radius)
         
         # Animation update function
         def update(frame):
@@ -831,7 +838,6 @@ class Visualizer:
             p = self.position[frame]
             # Animate
             animate(self.env, p, car_length, wheel_radius, axle_offset, self.car_shape, self.car_body, self.wheel_left, self.wheel_right)
-
 
         # Instantiate animation
         anim = FuncAnimation(fig, update, frames=len(self.t_eval), interval=1000 / self.refresh_rate, repeat=False)
@@ -844,7 +850,7 @@ class Visualizer:
 
         return HTML(anim.to_jshtml())
     
-    def display_contrast_animation(self, *simulators, if_gray:bool = False, if_save=False) -> HTML:
+    def display_contrast_animation(self, *simulators, if_gray:bool = False, if_save=False, if_notitle=False, title=None, if_nolegend=False) -> HTML:
         import matplotlib.patches as mpatches
 
         custom_handles = []
@@ -874,12 +880,13 @@ class Visualizer:
 
         # Draw a mountain-aligned flag at the target
         p_flag = self.env.target_position
-        theta_flag = float(self.env.theta(p_flag).full().flatten()[0])
-        normal_vec = np.array([np.sin(theta_flag), np.cos(theta_flag)])
+        # theta_flag = float(self.env.theta(p_flag).full().flatten()[0])
+        # normal_vec = np.array([np.sin(theta_flag), np.cos(theta_flag)])
         draw_flag(ax,
                 p_flag=p_flag,
                 h_func=self.env.h,
-                normal_vec=((0, 1) if self.simulator.env.case == 3 else normal_vec))
+                normal_vec=(0, 1))
+                # normal_vec=((0, 1) if self.simulator.env.case == 3 else normal_vec))
 
         # Start & Target markers
         initial_h = float(self.env.h(self.env.initial_position).full().flatten()[0])
@@ -916,17 +923,21 @@ class Visualizer:
             if if_gray:
                 car_shape, car_body, wheel_left, wheel_right = add_car(ax, car_length, wheel_radius, color='gray', filled=False)
             else:
-                car_shape, car_body, wheel_left, wheel_right = add_car(ax, car_length, wheel_radius, color=self.color, filled=False)
+                car_shape, car_body, wheel_left, wheel_right = add_car(ax, car_length, wheel_radius, color=color, filled=False)
             car_shapes[sim] = car_shape
             car_bodies[sim] = car_body
             wheel_lefts[sim] = wheel_left
             wheel_rights[sim] = wheel_right
 
         # Title using correct controller names
-        controller_names = " vs. ".join(
-            [self.simulator.controller_name] + [sim.controller_name for sim in simulators]
-        )
-        ax.set_title(controller_names)
+        if not if_notitle:
+            if title is not None:
+                ax.set_title(title)
+            else:
+                controller_names = " vs. ".join(
+                    [self.simulator.controller_name] + [sim.controller_name for sim in simulators]
+                )
+                ax.set_title(controller_names)
 
         # Legends
         car_legend_handles = [
