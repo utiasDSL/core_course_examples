@@ -172,3 +172,7 @@ ex5_MPC/*.json
 ex5_MPC/c_generated_code/
 ex6_SysID/*.json
 ex6_SysID/c_generated_code/
+ex7_RL/*.json
+ex7_RL/c_generated_code/
+ex8_DRL/*.json
+ex8_DRL/c_generated_code/

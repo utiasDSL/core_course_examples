@@ -2,7 +2,9 @@
 This repository contains the examples shown in the course 'Optimal Control and Decision-Making' by Prof. Angela P. Schoellig at TUM. You can try them yourself following the steps below. The examples are implemented in Python and use Jupyter notebooks for in-depth exploration of the concepts covered in the lectures. 
 
 ## Course Overview
-These examples complement the theoretical concepts covered in the lectures by providing interactive implementations. You'll find implementations of dynamic programming, model predictive control, reinforcement learning, and more - applied to the [mountain car problem](https://en.wikipedia.org/wiki/Mountain_car_problem).
+These examples complement the theoretical concepts covered in the lectures by providing interactive implementations. You'll find implementations of dynamic programming, model predictive control, reinforcement learning, and more - applied to the [mountain car problem](https://en.wikipedia.org/wiki/Mountain_car_problem). 
+
+![Figure 1: The mountain car reaches the top of the hill using nonlinear model predictive control (MPC)](figure/MountainCarAnimation.gif)
 
 ## Prerequisites
 - Basic knowledge of Python programming
@@ -56,7 +58,7 @@ git clone git@github.com:utiasDSL/core_course_examples.git
 Open VS Code. Press the `F1` key, select `Dev Containers: Open Folder in Container` in the search bar, and select the cloned repository as the folder. The repository contains a `Dockerfile`, which is like a recipe how to set up all the required dependencies in a container. The creation of the container may take a couple of minutes.  
 
 ## Usage
-In VS Code's Explorer, expand the folder `ex1_DP` and double-click on the Jupyter notebook `dynamic_programming.ipynb`.
+In VS Code's Explorer, expand the folder `ex1_DP` and double-click on the Jupyter notebook `1.1_dynamic_programming.ipynb`.
 
 This will open up the first example on dynamic programming and will prompt you to install additional extensions, e.g., the Jupyter and Python extensions (if you haven't installed them already). To run the cells in the notebook, you will have to select a Kernel. As the kernel, select the Python environment provided by the Docker container. Detailed instructions on how to use Jupyter notebooks in VS Code can be found here: https://code.visualstudio.com/docs/datascience/jupyter-notebooks 
 
