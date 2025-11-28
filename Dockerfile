@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     make \
     gcc \
     g++ \
+    ffmpeg \
     libblas-dev \
     liblapack-dev \
     libopenblas-dev \
