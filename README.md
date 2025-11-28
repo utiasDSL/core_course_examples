@@ -4,7 +4,7 @@ This repository contains the examples shown in the course 'Optimal Control and D
 ## Course Overview
 These examples complement the theoretical concepts covered in the lectures by providing interactive implementations. You'll find implementations of dynamic programming, model predictive control, reinforcement learning, and more - applied to the [mountain car problem](https://en.wikipedia.org/wiki/Mountain_car_problem). 
 
-![Figure 1: The mountain car reaches the top of the hill using nonlinear model predictive control (MPC)](../figure/MountainCarAnimation.gif)
+![Figure 1: The mountain car reaches the top of the hill using nonlinear model predictive control (MPC)](figure/MountainCarAnimation.gif)
 
 ## Prerequisites
 - Basic knowledge of Python programming
